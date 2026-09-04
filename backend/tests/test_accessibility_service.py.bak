@@ -1,0 +1,201 @@
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.services.accessibility_service import AccessibilityService
+from app.db.models import RoadSegment
+from app.db.models.incident import IncidentStatus
+
+@pytest.mark.asyncio
+async def test_is_blocking_incident():
+    # Test blocking incidents
+    assert AccessibilityService._is_blocking_incident(None, None) == False
+    assert AccessibilityService._is_blocking_incident("LANDSLIDE", "HIGH") == True
+    assert AccessibilityService._is_blocking_incident("LANDSLIDE", "CRITICAL") == True
+    assert AccessibilityService._is_blocking_incident("LANDSLIDE", "MEDIUM") == False
+    assert AccessibilityService._is_blocking_incident("LANDSLIDE", "LOW") == False
+    assert AccessibilityService._is_blocking_incident("FLOOD", "HIGH") == True
+    assert AccessibilityService._is_blocking_incident("FLOOD", "CRITICAL") == True
+    assert AccessibilityService._is_blocking_incident("FLOOD", "MEDIUM") == False
+    assert AccessibilityService._is_blocking_incident("FLOOD", "LOW") == False
+    assert AccessibilityService._is_blocking_incident("ACCIDENT", "HIGH") == False  # Not blocking by default
+    assert AccessibilityService._is_blocking_incident("CONSTRUCTION", "HIGH") == False  # Not blocking by default
+    assert AccessibilityService._is_blocking_incident("OTHER", "HIGH") == False
+
+@pytest.mark.asyncio
+async def test_is_degrading_incident():
+    # Test degrading incidents (not blocking)
+    assert AccessibilityService._is_degrading_incident("LANDSLIDE", "HIGH") == False  # It's blocking, so not degrading
+    assert AccessibilityService._is_degrading_incident("LANDSLIDE", "MEDIUM") == True
+    assert AccessibilityService._is_degrading_incident("LANDSLIDE", "LOW") == True
+    assert AccessibilityService._is_degrading_incident("FLOOD", "MEDIUM") == True
+    assert AccessibilityService._is_degrading_incident("FLOOD", "LOW") == True
+    assert AccessibilityService._is_degrading_incident("ACCIDENT", "HIGH") == True  # Accident is degrading
+    assert AccessibilityService._is_degrading_incident("CONSTRUCTION", "HIGH") == True  # Construction is degrading
+    assert AccessibilityService._is_degrading_incident("OTHER", "HIGH") == True  # Other is degrading (assuming)
+    # Note: The _is_degrading_incident method returns True if not blocking, so for OTHER with HIGH, it's not blocking, so degrading.
+
+@pytest.mark.asyncio
+async def test_calculate_segment_accessibility_no_incidents(db_session: AsyncSession):
+    # Create a road segment
+    segment = RoadSegment(
+        id=1,
+        start_node_id=1,
+        end_node_id=2,
+        status="UNKNOWN"
+    )
+    db_session.add(segment)
+    await db_session.commit()
+
+    service = AccessibilityService(db_session)
+    status = await service.calculate_segment_accessibility(1)
+    assert status == "OPEN"
+
+@pytest.mark.asyncio
+async def test_calculate_segment_accessibility_with_blocking_incident(db_session: AsyncSession):
+    # Create a road segment
+    segment = RoadSegment(
+        id=1,
+        start_node_id=1,
+        end_node_id=2,
+        status="UNKNOWN"
+    )
+    db_session.add(segment)
+    await db_session.commit()
+
+    # Create a verified active blocking incident
+    incident = Incident(
+        id=1,
+        reporter_id=1,
+        description="Test",
+        incident_type="LANDSLIDE",
+        severity="HIGH",
+        latitude=0.0,
+        longitude=0.0,
+        segment_id=1,
+        status=IncidentStatus.VERIFIED.value,
+        reported_at=datetime.utcnow(),
+    )
+    db_session.add(incident)
+    await db_session.commit()
+
+    service = AccessibilityService(db_session)
+    status = await service.calculate_segment_accessibility(1)
+    assert status == "BLOCKED"
+
+@pytest.mark.asyncio
+async def test_calculate_segment_accessibility_with_degrading_incident(db_session: AsyncSession):
+    # Create a road segment
+    segment = RoadSegment(
+        id=1,
+        start_node_id=1,
+        end_node_id=2,
+        status="UNKNOWN"
+    )
+    db_session.add(segment)
+    await db_session.commit()
+
+    # Create a verified active degrading incident
+    incident = Incident(
+        id=1,
+        reporter_id=1,
+        description="Test",
+        incident_type="LANDSLIDE",
+        severity="MEDIUM",
+        latitude=0.0,
+        longitude=0.0,
+        segment_id=1,
+        status=IncidentStatus.VERIFIED.value,
+        reported_at=datetime.utcnow(),
+    )
+    db_session.add(incident)
+    await db_session.commit()
+
+    service = AccessibilityService(db_session)
+    status = await service.calculate_segment_accessibility(1)
+    assert status == "DEGRADED"
+
+@pytest.mark.asyncio
+async def test_calculate_segment_accessibility_multiple_incidents_precedence(db_session: AsyncSession):
+    # Create a road segment
+    segment = RoadSegment(
+        id=1,
+        start_node_id=1,
+        end_node_id=2,
+        status="UNKNOWN"
+    )
+    db_session.add(segment)
+    await db_session.commit()
+
+    # Create a verified active degrading incident
+    incident1 = Incident(
+        id=1,
+        reporter_id=1,
+        description="Test",
+        incident_type="LANDSLIDE",
+        severity="MEDIUM",
+        latitude=0.0,
+        longitude=0.0,
+        segment_id=1,
+        status=IncidentStatus.VERIFIED.value,
+        reported_at=datetime.utcnow(),
+    )
+    # Create a verified active blocking incident
+    incident2 = Incident(
+        id=2,
+        reporter_id=2,
+        description="Test2",
+        incident_type="FLOOD",
+        severity="HIGH",
+        latitude=0.0,
+        longitude=0.0,
+        segment_id=1,
+        status=IncidentStatus.VERIFIED.value,
+        reported_at=datetime.utcnow(),
+    )
+    db_session.add_all([incident1, incident2])
+    await db_session.commit()
+
+    service = AccessibilityService(db_session)
+    status = await service.calculate_segment_accessibility(1)
+    assert status == "BLOCKED"  # Blocking takes precedence
+
+@pytest.mark.asyncio
+async def test_update_segment_accessibility(db_session: AsyncSession):
+    # Create a road segment
+    segment = RoadSegment(
+        id=1,
+        start_node_id=1,
+        end_node_id=2,
+        status="UNKNOWN"
+    )
+    db_session.add(segment)
+    await db_session.commit()
+
+    # Create a verified active degrading incident
+    incident = Incident(
+        id=1,
+        reporter_id=1,
+        description="Test",
+        incident_type="LANDSLIDE",
+        severity="MEDIUM",
+        latitude=0.0,
+        longitude=0.0,
+        segment_id=1,
+        status=IncidentStatus.VERIFIED.value,
+        reported_at=datetime.utcnow(),
+    )
+    db_session.add(incident)
+    await db_session.commit()
+
+    service = AccessibilityService(db_session)
+    new_status = await service.update_segment_accessibility(1)
+    assert new_status == "DEGRADED"
+
+    # Check that the segment status was updated in the database
+    from sqlalchemy import select
+    result = await db_session.execute(select(RoadSegment.status).where(RoadSegment.id == 1))
+    current_status = result.scalar_one()
+    assert current_status == "DEGRADED"
+

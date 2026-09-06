@@ -1,0 +1,57 @@
+# ==============================================================================
+# Add this service block to your existing docker-compose.yml
+# This gives you free, self-hosted routing with no external API/key needed.
+# ==============================================================================
+
+services:
+  # ... your existing postgres, redis, app services stay as-is ...
+
+  osrm:
+    image: osrm/osrm-backend:latest
+    container_name: riskroute-osrm
+    volumes:
+      - ./osrm-data:/data
+    ports:
+      - "5000:5000"
+    command: osrm-routed --algorithm mld /data/northeast-india.osrm
+    restart: unless-stopped
+
+# ==============================================================================
+# ONE-TIME SETUP — prepare the OSRM data file before first `docker-compose up`
+# ==============================================================================
+#
+# 1. Download an OpenStreetMap extract for the North Eastern Region.
+#    Geofabrik provides India regional extracts:
+#    https://download.geofabrik.de/asia/india.html
+#    (India isn't split by NE region specifically — download the full India
+#    extract, or use a bounding-box tool like https://extract.bbbike.org
+#    to cut out just Assam/Meghalaya/Manipur/etc. for a much smaller file —
+#    recommended, since the full India file is large and slow to process.)
+#
+#    mkdir -p osrm-data
+#    # place the downloaded file as osrm-data/northeast-india.osm.pbf
+#
+# 2. Process the extract into OSRM's routing format (one-time, run these
+#    three commands — each uses the same free Docker image, no signup):
+#
+#    docker run -t -v "${PWD}/osrm-data:/data" osrm/osrm-backend \
+#        osrm-extract -p /opt/car.lua /data/northeast-india.osm.pbf
+#
+#    docker run -t -v "${PWD}/osrm-data:/data" osrm/osrm-backend \
+#        osrm-partition /data/northeast-india.osrm
+#
+#    docker run -t -v "${PWD}/osrm-data:/data" osrm/osrm-backend \
+#        osrm-customize /data/northeast-india.osrm
+#
+# 3. Now `docker-compose up` will start OSRM serving on http://localhost:5000
+#    Test it:
+#    curl "http://localhost:5000/route/v1/driving/91.7362,26.1445;93.9368,26.2006?overview=false"
+#    (example: Guwahati → Imphal)
+#
+# 4. Your backend's routing router should call this via OSRM_BASE_URL
+#    (already set in .env.example) instead of any paid routing API.
+#
+# NOTE: If a smaller/faster setup is needed for the demo before the full OSM
+# extract is ready, keep the NetworkX fallback path active — Opus's plan
+# already accounts for this as a secondary option.
+# ==============================================================================

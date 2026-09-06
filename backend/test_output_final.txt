@@ -1,0 +1,135 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.9, pytest-8.4.2, pluggy-1.5.0 -- C:\Users\vatsa\anaconda3\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\vatsa\OneDrive\Documents\SIH-HACKATHON\backend
+plugins: anyio-4.10.0, asyncio-1.4.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 1 item
+
+tests/test_integration.py::test_integration_workflow_field_officer_create_then_control_room_verify_resolve FAILED [100%]
+
+================================== FAILURES ===================================
+_ test_integration_workflow_field_officer_create_then_control_room_verify_resolve _
+
+db_session = <AsyncMock spec='AsyncSession' id='2722089745920'>
+
+    @pytest.mark.asyncio
+    async def test_integration_workflow_field_officer_create_then_control_room_verify_resolve(db_session: AsyncSession):
+        # Create a FIELD_OFFICER user
+        field_officer = User(
+            id=1,
+            username="fieldofficer",
+            email="field@example.com",
+            password_hash="hashed",
+            role="FIELD_OFFICER",
+            is_active=True
+        )
+        # Create a CONTROL_ROOM user
+        control_room = User(
+            id=2,
+            username="controlroom",
+            email="control@example.com",
+            password_hash="hashed",
+            role="CONTROL_ROOM",
+            is_active=True
+        )
+        db_session.add_all([field_officer, control_room])
+        await db_session.commit()
+    
+        # Create a road segment
+        segment = RoadSegment(
+            id=1,
+            start_node_id=1,
+            end_node_id=2,
+            status="UNKNOWN"
+        )
+        db_session.add(segment)
+        await db_session.commit()
+    
+        # Create a mock incident object that will be returned by get_incident
+        mock_incident = MagicMock()
+        mock_incident.id = 1
+        mock_incident.verified_at = None
+        mock_incident.verified_by = None
+        mock_incident.status = None
+    
+        # Mock results for the execute method
+        # Define a side effect function for db_session.execute
+        def execute_side_effect(query):
+            query_str = str(query)
+            if "SELECT road_segments.id" in query_str and "ORDER BY ST_Distance" in query_str:
+                # Mock for the nearest segment query
+                mock_result = MagicMock()
+                mock_result.scalar_one_or_none.return_value = segment.id
+                return mock_result
+            elif "SELECT incidents.id" in query_str and "WHERE incidents.id =" in query_str:
+                # Mock for getting the incident (refresh and get_incident)
+                mock_result = MagicMock()
+                mock_result.scalar_one_or_none.return_value = mock_incident
+                return mock_result
+            elif "SELECT audit_logs.id" in query_str:
+                # Mock for getting the audit log (refresh in create_audit_log)
+                mock_result = MagicMock()
+                mock_result.scalar_one_or_none.return_value = mock_audit_log
+                return mock_result
+            else:
+                # For any other query (including updates), return a mock that returns None for scalar_one_or_none
+                mock_result = MagicMock()
+                mock_result.scalar_one_or_none.return_value = None
+                return mock_result
+    
+        db_session.execute.side_effect = execute_side_effect
+    
+        # Step 1: FIELD_OFFICER creates a LANDSLIDE incident
+        incident_service = IncidentService(db_session)
+        incident = await incident_service.create_incident(
+            reporter_id=field_officer.id,
+            description="Landslide on the road",
+            incident_type="LANDSLIDE",
+            severity="HIGH",
+            latitude=0.0,
+            longitude=0.0,
+            segment_id=None  # Let the service find the nearest segment
+        )
+        assert incident is not None
+        assert incident.status == IncidentStatus.PENDING.value
+        # The service should have set the segment_id to the nearest segment (which is our segment)
+        assert incident.segment_id == 1
+    
+        # After creation, the incident is PENDING, so it should not affect accessibility yet
+        accessibility_service = AccessibilityService(db_session)
+        status_after_create = await accessibility_service.calculate_segment_accessibility(1)
+        assert status_after_create == "OPEN"  # PENDING incident does not affect accessibility
+    
+        # Step 2: CONTROL_ROOM veries the incident
+        verified_incident = await incident_service.verify_incident(incident.id, control_room.id)
+>       assert verified_incident is not None
+E       assert None is not None
+
+tests\test_integration.py:108: AssertionError
+---------------------------- Captured stdout call -----------------------------
+Incident after refresh: <Incident id=None type=LANDSLIDE status=PENDING>
+verify_incident called with incident_id=None, verified_by=2
+get_incident called with incident_id=None
+incident from get_incident: None
+============================== warnings summary ===============================
+app\core\config.py:4
+  C:\Users\vatsa\OneDrive\Documents\SIH-HACKATHON\backend\app\core\config.py:4: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class Settings(BaseSettings):
+
+tests/test_integration.py::test_integration_workflow_field_officer_create_then_control_room_verify_resolve
+  C:\Users\vatsa\OneDrive\Documents\SIH-HACKATHON\backend\tests\test_integration.py:21: SAWarning: relationship 'User.reported_incidents' will copy column users.id to column incidents.reporter_id, which conflicts with relationship(s): 'Incident.reporter' (copies users.id to incidents.reporter_id). If this is not the intention, consider if these relationships should be linked with back_populates, or if viewonly=True should be applied to one or more if they are read-only. For the less common case that foreign key constraints are partially overlapping, the orm.foreign() annotation can be used to isolate the columns that should be written towards.   To silence this warning, add the parameter 'overlaps="reporter"' to the 'User.reported_incidents' relationship. (Background on this warning at: https://sqlalche.me/e/20/qzyx) (This warning originated from the `configure_mappers()` process, which was invoked automatically in response to a user-initiated operation.)
+    field_officer = User(
+
+tests/test_integration.py::test_integration_workflow_field_officer_create_then_control_room_verify_resolve
+  C:\Users\vatsa\OneDrive\Documents\SIH-HACKATHON\backend\tests\test_integration.py:21: SAWarning: relationship 'User.verified_incidents' will copy column users.id to column incidents.verified_by, which conflicts with relationship(s): 'Incident.verifier' (copies users.id to incidents.verified_by). If this is not the intention, consider if these relationships should be linked with back_populates, or if viewonly=True should be applied to one or more if they are read-only. For the less common case that foreign key constraints are partially overlapping, the orm.foreign() annotation can be used to isolate the columns that should be written towards.   To silence this warning, add the parameter 'overlaps="verifier"' to the 'User.verified_incidents' relationship. (Background on this warning at: https://sqlalche.me/e/20/qzyx) (This warning originated from the `configure_mappers()` process, which was invoked automatically in response to a user-initiated operation.)
+    field_officer = User(
+
+tests/test_integration.py::test_integration_workflow_field_officer_create_then_control_room_verify_resolve
+  C:\Users\vatsa\OneDrive\Documents\SIH-HACKATHON\backend\app\services\incident_service.py:91: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    reported_at=datetime.utcnow(),
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_integration.py::test_integration_workflow_field_officer_create_then_control_room_verify_resolve
+======================== 1 failed, 4 warnings in 1.79s ========================

@@ -1,13 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 from geoalchemy2.functions import ST_MakeEnvelope, ST_Intersects, ST_Distance, ST_AsGeoJSON
 from app.db.session import get_db
-from app.db.models import RoadSegment
-from app.schemas.segment import SegmentResponse
-from app.services.accessibility_service import AccessibilityService
-from app.core.security import get_current_user_with_role
-from app.services.accessibility_service import AccessibilityService
+from app.db.models import RoadSegment, AuditLog, User
+from app.schemas.segment import SegmentResponse, SegmentStatusUpdate
 from app.services.accessibility_service import AccessibilityService
 from app.core.security import get_current_user_with_role
 
@@ -87,11 +84,68 @@ async def get_nearest_segment(
     )
 
     result = await db.execute(query)
-    segment = result.one_or_none()
 
     if segment is None:
         raise HTTPException(status_code=404, detail="No segments found")
 
+    return SegmentResponse(
+        id=segment.id,
+        start_node_id=segment.start_node_id,
+        end_node_id=segment.end_node_id,
+        length=segment.length,
+        name=segment.name,
+        status=segment.status,
+        geojson=segment.geojson,
+    )
+
+@router.patch("/segments/{segment_id}/status", response_model=SegmentResponse)
+async def update_segment_status(
+    segment_id: int,
+    status_update: SegmentStatusUpdate,
+    current_user: User = Depends(get_current_user_with_role(["ADMIN", "CONTROL_ROOM"])),
+    db: AsyncSession = Depends(get_db),
+):
+    # Validate the status is allowed (though the schema does it)
+    allowed_statuses = ['OPEN', 'DEGRADED', 'BLOCKED', 'UNKNOWN']
+    if status_update.status not in allowed_statuses:
+        raise HTTPException(status_code=400, detail=f"Invalid status: {status_update.status}")
+
+    # Get the current status
+    result = await db.execute(
+        select(RoadSegment.status).where(RoadSegment.id == segment_id)
+    )
+    current_status = result.scalar_one_or_none()
+
+    if current_status is None:
+        raise HTTPException(status_code=404, detail=f"Segment with id {segment_id} not found")
+
+
+    # Use accessibility service to manually update segment status (respects manual override logic)
+    accessibility_service = AccessibilityService(db)
+    new_status = await accessibility_service.manually_update_segment_status(
+        segment_id=segment_id,
+        new_status=status_update.status,
+        user_id=current_user.id,
+        reason=status_update.reason
+    )
+
+    # Get the updated segment to return
+    result = await db.execute(
+        select(
+            RoadSegment.id,
+            RoadSegment.start_node_id,
+            RoadSegment.end_node_id,
+            RoadSegment.length,
+            RoadSegment.name,
+            RoadSegment.status,
+            func.ST_AsGeoJSON(RoadSegment.geom).label("geojson"),
+        )
+        .where(RoadSegment.id == segment_id)
+    )
+    segment = result.one_or_none()
+
+    if segment is None:
+        raise HTTPException(status_code=404, detail=f"Segment with id {segment_id} not found after update")
     return SegmentResponse(
         id=segment.id,
         start_node_id=segment.start_node_id,

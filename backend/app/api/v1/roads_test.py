@@ -112,6 +112,5 @@ async def test_endpoint(
         length=100.0,
         name="Test Segment",
         status="OPEN",
-        geojson="{"type": "LineString", "coordinates": [[0, 0], [1, 1]]}",
-    )
+        geojson='{"type": "LineString", "coordinates": [[0, 0], [1, 1]]}'
     )

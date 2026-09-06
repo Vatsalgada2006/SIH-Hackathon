@@ -1,0 +1,42 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.9, pytest-8.4.2, pluggy-1.5.0 -- C:\Users\vatsa\anaconda3\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\vatsa\OneDrive\Documents\SIH-HACKATHON\backend
+plugins: anyio-4.10.0, asyncio-1.4.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... ERROR: found no collectors for C:\Users\vatsa\OneDrive\Documents\SIH-HACKATHON\backend\tests\test_integration.py::test_integration_workflow_field_officer_create_then_control_room_verify_resolve
+
+collected 0 items / 1 error
+
+=================================== ERRORS ====================================
+_________________ ERROR collecting tests/test_integration.py __________________
+..\..\..\..\anaconda3\Lib\site-packages\_pytest\python.py:498: in importtestmodule
+    mod = import_path(
+..\..\..\..\anaconda3\Lib\site-packages\_pytest\pathlib.py:587: in import_path
+    importlib.import_module(module_name)
+..\..\..\..\anaconda3\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1387: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1360: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1331: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:935: in _load_unlocked
+    ???
+..\..\..\..\anaconda3\Lib\site-packages\_pytest\assertion\rewrite.py:177: in exec_module
+    source_stat, co = _rewrite_test(fn, self.config)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\anaconda3\Lib\site-packages\_pytest\assertion\rewrite.py:357: in _rewrite_test
+    tree = ast.parse(source, filename=strfn)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\anaconda3\Lib\ast.py:50: in parse
+    return compile(source, filename, mode, flags,
+E     File "C:\Users\vatsa\OneDrive\Documents\SIH-HACKATHON\backend\tests\test_integration.py", line 21
+E       f.write("Entering test function
+E               ^
+E   SyntaxError: unterminated string literal (detected at line 21)
+=========================== short test summary info ===========================
+ERROR tests/test_integration.py
+============================== 1 error in 0.49s ===============================

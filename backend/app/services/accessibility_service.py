@@ -1,13 +1,17 @@
-﻿from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from app.db.models import Incident, RoadSegment, AuditLog
 from app.db.models.incident import IncidentStatus
-from typing import Optional
+from app.services.ml_service import MLService
+from typing import Optional, Tuple
 from datetime import datetime
+import json
+
 
 class AccessibilityService:
     def __init__(self, db: AsyncSession):
         self.db = db
+        self.ml_service = MLService()
 
     @staticmethod
     def _is_blocking_incident(incident_type: str, severity: str) -> bool:
@@ -85,7 +89,80 @@ class AccessibilityService:
             # This should not happen if our rules are correct, but fallback to OPEN
             return "OPEN"
 
+    async def get_segment_status_with_reason(self, segment_id: int) -> Tuple[str, Optional[str]]:
+        # Check for manual override
+        result = await self.db.execute(
+            select(RoadSegment).where(RoadSegment.id == segment_id)
+        )
+        segment = result.scalar_one_or_none()
 
+        if segment is not None and segment.manual_override:
+            return segment.status, segment.manual_override_reason
+
+        # Get the status based on incidents only
+        incident_based_status = await self.calculate_segment_accessibility(segment_id)
+
+        # Get ML-based prediction if we have sufficient confidence
+        ml_prediction = None
+        ml_reason = None
+        try:
+            # In a real implementation, we would gather relevant external data
+            # For now, we'll use placeholder data
+            external_data = {
+                'temperature': 25,  # Placeholder
+                'precipitation': 0,  # Placeholder
+                'wind_speed': 10,   # Placeholder
+                'visibility': 10000  # Placeholder
+            }
+
+            ml_result = await self.ml_service.predict_segment_status(segment_id, external_data)
+            if ml_result['status'] is not None:
+                ml_prediction = ml_result['status']
+                ml_reason = f"ML prediction: {ml_prediction}"
+        except Exception:
+            # If ML service fails, we'll just rely on incident-based status
+            pass
+
+        # Determine final status and reason:
+        # 1. If there's a manual override, we already returned above
+        # 2. Otherwise, we combine incident-based status with ML prediction
+        #    - ML prediction only affects the result if there are no incidents or if it agrees with incident-based status
+        #    - In case of conflict, incidents take precedence (as per requirements)
+        #    - ML prediction can only upgrade/downgrade status when there are no conflicting incidents
+
+        final_status = incident_based_status
+        reason = None
+
+        # If there are no active verified incidents, we can consider ML prediction
+        if incident_based_status == "OPEN" and ml_prediction is not None:
+            # No incidents, so ML prediction can determine the status
+            final_status = ml_prediction
+            reason = ml_reason
+        # Note: We don't let ML prediction worsen the status when incidents suggest OPEN
+        # because incidents take precedence. But if incidents suggest OPEN and ML says BLOCKED/DEGRADED,
+        # we still go with OPEN because we trust verified incidents over predictions.
+
+        # If we have incidents, we need to set the reason based on the incidents
+        if incident_based_status != "OPEN":
+            # Get the active verified incidents again to build the reason
+            incidents = await self._get_active_verifed_incidents_for_segment(segment_id)
+            if incidents:
+                # We'll take the first incident that matches the status
+                for incident in incidents:
+                    if final_status == "BLOCKED" and self._is_blocking_incident(incident.incident_type, incident.severity):
+                        reason = f"{incident.incident_type}: {incident.severity}"
+                        break
+                    elif final_status == "DEGRADED" and self._is_degrading_incident(incident.incident_type, incident.severity):
+                        reason = f"{incident.incident_type}: {incident.severity}"
+                        break
+                # If we didn't set a reason (shouldn't happen), set a generic one
+                if reason is None:
+                    reason = "Active incident(s)"
+            else:
+                # This should not happen because if incident_based_status is not OPEN, there should be incidents
+                reason = "Active incident(s)"
+
+        return final_status, reason
 
     async def update_segment_accessibility(self, segment_id: int, force: bool = False) -> str:
         """

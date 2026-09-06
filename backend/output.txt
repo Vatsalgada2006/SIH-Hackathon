@@ -1,0 +1,196 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.9, pytest-8.4.2, pluggy-1.5.0 -- C:\Users\vatsa\anaconda3\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\vatsa\OneDrive\Documents\SIH-HACKATHON\backend
+plugins: anyio-4.10.0, asyncio-1.4.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 1 item
+
+tests/test_integration.py::test_integration_workflow_field_officer_create_then_control_room_verify_resolve FAILED [100%]
+
+================================== FAILURES ===================================
+_ test_integration_workflow_field_officer_create_then_control_room_verify_resolve _
+
+self = <AsyncMock name='mock.execute' id='1461970503056'>
+args = (<sqlalchemy.sql.selectable.Select object at 0x000001546430F680>,)
+kwargs = {}
+_call = call(<sqlalchemy.sql.selectable.Select object at 0x000001546430F680>)
+effect = <list_iterator object at 0x0000015464391630>
+
+    async def _execute_mock_call(self, /, *args, **kwargs):
+        # This is nearly just like super(), except for special handling
+        # of coroutines
+    
+        _call = _Call((args, kwargs), two=True)
+        self.await_count += 1
+        self.await_args = _call
+        self.await_args_list.append(_call)
+    
+        effect = self.side_effect
+        if effect is not None:
+            if _is_exception(effect):
+                raise effect
+            elif not _callable(effect):
+                try:
+>                   result = next(effect)
+                             ^^^^^^^^^^^^
+E                   StopIteration
+
+..\..\..\..\anaconda3\Lib\unittest\mock.py:2324: StopIteration
+
+During handling of the above exception, another exception occurred:
+
+db_session = <AsyncMock spec='AsyncSession' id='1461970501712'>
+
+    @pytest.mark.asyncio
+    async def test_integration_workflow_field_officer_create_then_control_room_verify_resolve(db_session: AsyncSession):
+        # Create a FIELD_OFFICER user
+        field_officer = User(
+            id=1,
+            username="fieldofficer",
+            email="field@example.com",
+            password_hash="hashed",
+            role="FIELD_OFFICER",
+            is_active=True
+        )
+        # Create a CONTROL_ROOM user
+        control_room = User(
+            id=2,
+            username="controlroom",
+            email="control@example.com",
+            password_hash="hashed",
+            role="CONTROL_ROOM",
+            is_active=True
+        )
+        db_session.add_all([field_officer, control_room])
+        await db_session.commit()
+    
+        # Create a road segment
+        segment = RoadSegment(
+            id=1,
+            start_node_id=1,
+            end_node_id=2,
+            status="UNKNOWN"
+        )
+        db_session.add(segment)
+        await db_session.commit()
+    
+        # Create a mock incident object that will be returned by get_incident
+        mock_incident = MagicMock()
+        mock_incident.id = 1
+        mock_incident.verified_at = None
+        mock_incident.verified_by = None
+        mock_incident.status = None
+    
+        # Mock results for the execute method
+        mock_result_segment = MagicMock()
+        mock_result_segment.scalar_one_or_none.return_value = segment.id  # for the nearest segment query
+    
+        mock_result_incident = MagicMock()
+        mock_result_incident.scalar_one_or_none.return_value = mock_incident  # for the incident query
+    
+        # Set up side effect for execute: first call returns mock_result_segment, second returns mock_result_incident
+        db_session.execute.side_effect = [mock_result_segment, mock_result_incident]
+    
+        # Step 1: FIELD_OFFICER creates a LANDSLIDE incident
+        incident_service = IncidentService(db_session)
+        incident = await incident_service.create_incident(
+            reporter_id=field_officer.id,
+            description="Landslide on the road",
+            incident_type="LANDSLIDE",
+            severity="HIGH",
+            latitude=0.0,
+            longitude=0.0,
+            segment_id=None  # Let the service find the nearest segment
+        )
+        assert incident is not None
+        assert incident.status == IncidentStatus.PENDING.value
+        # The service should have set the segment_id to the nearest segment (which is our segment)
+        assert incident.segment_id == 1
+    
+        # After creation, the incident is PENDING, so it should not affect accessibility yet
+        accessibility_service = AccessibilityService(db_session)
+        status_after_create = await accessibility_service.calculate_segment_accessibility(1)
+        assert status_after_create == "OPEN"  # PENDING incident does not affect accessibility
+    
+        # Step 2: CONTROL_ROOM veries the incident
+>       verified_incident = await incident_service.verify_incident(incident.id, control_room.id)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_integration.py:90: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <app.services.incident_service.IncidentService object at 0x00000154643BA510>
+incident_id = None, verified_by = 2
+
+    async def verify_incident(
+        self,
+        incident_id: int,
+        verified_by: int,
+    ) -> Optional[Incident]:
+>       incident = await self.get_incident(incident_id)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+app\services\incident_service.py:166: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <app.services.incident_service.IncidentService object at 0x00000154643BA510>
+incident_id = None
+
+    async def get_incident(self, incident_id: int) -> Optional[Incident]:
+>       result = await self.db.execute(select(Incident).where(Incident.id == incident_id))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+app\services\incident_service.py:38: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <AsyncMock name='mock.execute' id='1461970503056'>
+args = (<sqlalchemy.sql.selectable.Select object at 0x000001546430F680>,)
+kwargs = {}
+_call = call(<sqlalchemy.sql.selectable.Select object at 0x000001546430F680>)
+effect = <list_iterator object at 0x0000015464391630>
+
+    async def _execute_mock_call(self, /, *args, **kwargs):
+        # This is nearly just like super(), except for special handling
+        # of coroutines
+    
+        _call = _Call((args, kwargs), two=True)
+        self.await_count += 1
+        self.await_args = _call
+        self.await_args_list.append(_call)
+    
+        effect = self.side_effect
+        if effect is not None:
+            if _is_exception(effect):
+                raise effect
+            elif not _callable(effect):
+                try:
+                    result = next(effect)
+                except StopIteration:
+                    # It is impossible to propagate a StopIteration
+                    # through coroutines because of PEP 479
+>                   raise StopAsyncIteration
+E                   StopAsyncIteration
+
+..\..\..\..\anaconda3\Lib\unittest\mock.py:2328: StopAsyncIteration
+============================== warnings summary ===============================
+app\core\config.py:4
+  C:\Users\vatsa\OneDrive\Documents\SIH-HACKATHON\backend\app\core\config.py:4: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class Settings(BaseSettings):
+
+tests/test_integration.py::test_integration_workflow_field_officer_create_then_control_room_verify_resolve
+  C:\Users\vatsa\OneDrive\Documents\SIH-HACKATHON\backend\tests\test_integration.py:21: SAWarning: relationship 'User.reported_incidents' will copy column users.id to column incidents.reporter_id, which conflicts with relationship(s): 'Incident.reporter' (copies users.id to incidents.reporter_id). If this is not the intention, consider if these relationships should be linked with back_populates, or if viewonly=True should be applied to one or more if they are read-only. For the less common case that foreign key constraints are partially overlapping, the orm.foreign() annotation can be used to isolate the columns that should be written towards.   To silence this warning, add the parameter 'overlaps="reporter"' to the 'User.reported_incidents' relationship. (Background on this warning at: https://sqlalche.me/e/20/qzyx) (This warning originated from the `configure_mappers()` process, which was invoked automatically in response to a user-initiated operation.)
+    field_officer = User(
+
+tests/test_integration.py::test_integration_workflow_field_officer_create_then_control_room_verify_resolve
+  C:\Users\vatsa\OneDrive\Documents\SIH-HACKATHON\backend\tests\test_integration.py:21: SAWarning: relationship 'User.verified_incidents' will copy column users.id to column incidents.verified_by, which conflicts with relationship(s): 'Incident.verifier' (copies users.id to incidents.verified_by). If this is not the intention, consider if these relationships should be linked with back_populates, or if viewonly=True should be applied to one or more if they are read-only. For the less common case that foreign key constraints are partially overlapping, the orm.foreign() annotation can be used to isolate the columns that should be written towards.   To silence this warning, add the parameter 'overlaps="verifier"' to the 'User.verified_incidents' relationship. (Background on this warning at: https://sqlalche.me/e/20/qzyx) (This warning originated from the `configure_mappers()` process, which was invoked automatically in response to a user-initiated operation.)
+    field_officer = User(
+
+tests/test_integration.py::test_integration_workflow_field_officer_create_then_control_room_verify_resolve
+  C:\Users\vatsa\OneDrive\Documents\SIH-HACKATHON\backend\app\services\incident_service.py:90: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    reported_at=datetime.utcnow(),
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_integration.py::test_integration_workflow_field_officer_create_then_control_room_verify_resolve
+======================== 1 failed, 4 warnings in 1.65s ========================

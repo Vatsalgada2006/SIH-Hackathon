@@ -8,6 +8,22 @@ from app.schemas.segment import SegmentResponse, SegmentStatusUpdate
 from app.services.accessibility_service import AccessibilityService
 from app.core.security import get_current_user_with_role
 
+import json
+from pydantic import BaseModel, Field
+from typing import List, Optional
+
+class RoadResponse(BaseModel):
+    id: int
+    name: str
+    from_node: str = Field(alias="from")
+    to_node: str = Field(alias="to")
+    status: str  # accessible, at_risk, inaccessible
+    riskReason: Optional[str]
+    coordinates: List[List[float]]  # list of [lat, lon]
+
+    class Config:
+        allow_population_by_field_name = True
+
 router = APIRouter()
 
 @router.get("/segments", response_model=list[SegmentResponse])
@@ -155,3 +171,63 @@ async def update_segment_status(
         status=segment.status,
         geojson=segment.geojson,
     )
+
+@router.get("/roads", response_model=list[RoadResponse])
+async def get_roads(
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(100, description="Maximum number of roads to return"),
+):
+    # Query road segments
+    result = await db.execute(
+        select(
+            RoadSegment.id,
+            RoadSegment.name,
+            RoadSegment.start_node_id,
+            RoadSegment.end_node_id,
+            RoadSegment.status,
+            func.ST_AsGeoJSON(RoadSegment.geom).label("geojson")
+        )
+        .limit(limit)
+    )
+    segments = result.all()
+
+    # We'll create an instance of the AccessibilityService
+    accessibility_service = AccessibilityService(db)
+
+    # We'll build the response
+    response = []
+    for segment in segments:
+        # Get the status and reason from the new method
+        status, reason = await accessibility_service.get_segment_status_with_reason(segment.id)
+
+        # Map the status to the contract status
+        if status == "OPEN":
+            contract_status = "accessible"
+        elif status == "DEGRADED":
+            contract_status = "at_risk"
+        elif status == "BLOCKED":
+            contract_status = "inaccessible"
+        else:
+            # UNKNOWN or any other status, we'll map to accessible (as default)
+            contract_status = "accessible"
+
+        # Parse the geojson to get the coordinates
+        geojson = json.loads(segment.geojson)
+        # geojson is a dict with keys: type and coordinates
+        # coordinates is a list of [lon, lat] pairs
+        coords = geojson['coordinates']
+        # Convert to [lat, lon]
+        lat_lon_coords = [[coord[1], coord[0]] for coord in coords]
+
+        # Build the response object
+        response.append({
+            "id": segment.id,
+            "name": segment.name,
+            "from_node": str(segment.start_node_id),
+            "to_node": str(segment.end_node_id),
+            "status": contract_status,
+            "riskReason": reason,
+            "coordinates": lat_lon_coords
+        })
+
+    return response

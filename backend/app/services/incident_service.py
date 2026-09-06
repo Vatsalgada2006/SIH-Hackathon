@@ -35,6 +35,7 @@ class IncidentService:
         self.db = db
 
     async def get_incident(self, incident_id: int) -> Optional[Incident]:
+        print(f"get_incident called with incident_id={incident_id}")
         result = await self.db.execute(select(Incident).where(Incident.id == incident_id))
         return result.scalar_one_or_none()
 
@@ -64,9 +65,11 @@ class IncidentService:
         longitude: float,
         segment_id: Optional[int] = None,
     ) -> Incident:
+        # Create point from latitude and longitude
+        point = func.ST_SetSRID(func.ST_MakePoint(longitude, latitude), 4326)
+        
         # If segment_id is not provided, find the nearest road segment
         if segment_id is None:
-            point = func.ST_SetSRID(func.ST_MakePoint(longitude, latitude), 4326)
             # Query the nearest segment
             query = (
                 select(RoadSegment.id)
@@ -74,19 +77,16 @@ class IncidentService:
                 .limit(1)
             )
             result = await self.db.execute(query)
-            nearest_segment = result.scalar_one_or_none()
-            if nearest_segment is None:
+            segment_id = result.scalar_one_or_none()
+            if segment_id is None:
                 raise ValueError("No road segments found")
-            segment_id = nearest_segment.id
-
         # Create the incident
         incident = Incident(
             reporter_id=reporter_id,
             description=description,
             incident_type=incident_type,
             severity=severity,
-            latitude=latitude,
-            longitude=longitude,
+            geom=point,
             segment_id=segment_id,
             reported_at=datetime.utcnow(),
             status=IncidentStatus.PENDING.value,
@@ -94,6 +94,7 @@ class IncidentService:
         self.db.add(incident)
         await self.db.commit()
         await self.db.refresh(incident)
+        print(f"Incident after refresh: {incident}")
 
         # Create audit log for incident creation
         await create_audit_log(
@@ -164,7 +165,9 @@ class IncidentService:
         incident_id: int,
         verified_by: int,
     ) -> Optional[Incident]:
+        print(f"verify_incident called with incident_id={incident_id}, verified_by={verified_by}")
         incident = await self.get_incident(incident_id)
+        print(f"incident from get_incident: {incident}")
         if not incident:
             return None
 

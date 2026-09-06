@@ -39,6 +39,10 @@ class Incident(Base):
     resolved_at = Column(DateTime(timezone=True), nullable=True)
     status = Column(String(20), nullable=False, server_default="PENDING")  # PENDING, VERIFIED, RESOLVED, REJECTED
     segment_id = Column(Integer, ForeignKey("road_segments.id"), nullable=True)  # Nearest road segment
+    passable_for = Column(String(50), nullable=True)
+    estimated_clearance_time_hrs = Column(Integer, nullable=True)
+    delay_penalty_minutes = Column(Integer, nullable=True)
+    reporting_agency = Column(String(100), nullable=True)
     # Inherited columns: created_at, updated_at
 
     # Relationships

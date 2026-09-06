@@ -1,0 +1,22 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "grid_id": "NER_001",
+        "description": "North Eastern Region Weather Monitoring Grid"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [88.0, 22.0],
+          [95.0, 22.0],
+          [95.0, 30.0],
+          [88.0, 30.0],
+          [88.0, 22.0]
+        ]]
+      }
+    }
+  ]
+}

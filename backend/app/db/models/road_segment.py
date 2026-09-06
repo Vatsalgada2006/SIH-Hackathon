@@ -19,6 +19,11 @@ class RoadSegment(Base):
     override_timestamp = Column(DateTime(timezone=True), nullable=True)
     override_user_id = Column(Integer, nullable=True)
     # Inherited columns: created_at, updated_at
+    # Terrain and susceptibility fields
+    slope_deg = Column(Float, nullable=True)
+    aspect_deg = Column(Float, nullable=True)
+    susceptibility_probability = Column(Float, nullable=True)
+    susceptibility_class = Column(Integer, nullable=True)
 
     # Relationships
     start_node = relationship("RoadNode", foreign_keys=[start_node_id])

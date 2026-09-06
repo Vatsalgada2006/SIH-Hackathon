@@ -1,0 +1,50 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "landslide_category": "DEBRIS_FLOW",
+        "landslide_trigger": "RAINFALL",
+        "fatalities": 2,
+        "injuries": 5,
+        "date": "2026-05-15",
+        "location_details": "NH-29 near Gangtok"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [91.7500, 26.1500]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "landslide_category": "ROCK_FALL",
+        "landslide_trigger": "EARTHQUAKE",
+        "fatalities": 0,
+        "injuries": 1,
+        "date": "2026-03-22",
+        "location_details": "NH-10 near Rangpo"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [88.3000, 27.5000]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "landslide_category": "SLUMP",
+        "landslide_trigger": "RAINFALL",
+        "fatalities": 1,
+        "injuries": 3,
+        "date": "2026-07-10",
+        "location_details": "NH-15 near Dibrugarh"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [91.5000, 25.5000]
+      }
+    }
+  ]
+}

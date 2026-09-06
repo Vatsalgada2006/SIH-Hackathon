@@ -6,3 +6,4 @@ from .road_node import RoadNode
 from .vehicle import Vehicle
 from .vehicle_position import VehiclePosition
 from .weather_snapshot import WeatherSnapshot
+from .landslide_event import LandslideEvent

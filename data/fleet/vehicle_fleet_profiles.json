@@ -1,0 +1,46 @@
+[
+  {
+    "vehicle_class": "HEAVY_CARGO_TRUCK",
+    "payload_capacity_tons": 40.0,
+    "base_plains_speed_kmh": 80.0,
+    "base_hills_speed_kmh": 50.0,
+    "max_slope_gradient_pct": 7.0,
+    "max_wind_speed_kmh": 90.0,
+    "rain_slowdown_factor": 0.3,
+    "risk_tolerance_threshold": 0.6,
+    "eligible_for_restricted_bridges": false
+  },
+  {
+    "vehicle_class": "MEDIUM_COMMERCIAL_VEHICLE",
+    "payload_capacity_tons": 15.0,
+    "base_plains_speed_kmh": 90.0,
+    "base_hills_speed_kmh": 60.0,
+    "max_slope_gradient_pct": 12.0,
+    "max_wind_speed_kmh": 100.0,
+    "rain_slowdown_factor": 0.2,
+    "risk_tolerance_threshold": 0.5,
+    "eligible_for_restricted_bridges": true
+  },
+  {
+    "vehicle_class": "LIGHT_4X4_SUPPLY_PICKUP",
+    "payload_capacity_tons": 5.0,
+    "base_plains_speed_kmh": 100.0,
+    "base_hills_speed_kmh": 70.0,
+    "max_slope_gradient_pct": 25.0,
+    "max_wind_speed_kmh": 120.0,
+    "rain_slowdown_factor": 0.1,
+    "risk_tolerance_threshold": 0.4,
+    "eligible_for_restricted_bridges": true
+  },
+  {
+    "vehicle_class": "EMERGENCY_DISASTER_RELIEF_VAN",
+    "payload_capacity_tons": 3.0,
+    "base_plains_speed_kmh": 110.0,
+    "base_hills_speed_kmh": 80.0,
+    "max_slope_gradient_pct": 15.0,
+    "max_wind_speed_kmh": 130.0,
+    "rain_slowdown_factor": 0.05,
+    "risk_tolerance_threshold": 0.3,
+    "eligible_for_restricted_bridges": true
+  }
+]

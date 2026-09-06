@@ -1,0 +1,39 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "origin_hub": "Guwahati",
+        "destination_hub": "Shillong",
+        "cargo_type": "TEXTILES",
+        "priority": "HIGH",
+        "assigned_vehicle_type": "HEAVY_CARGO_TRUCK"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [91.7365, 26.1445],
+          [91.8933, 25.5788]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "origin_hub": "Shillong",
+        "destination_hub": "Silchar",
+        "cargo_type": "FOOD_GRAINS",
+        "priority": "MEDIUM",
+        "assigned_vehicle_type": "LIGHT_4X4_SUPPLY_PICKUP"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [91.8933, 25.5788],
+          [92.7989, 24.8333]
+        ]
+      }
+    }
+  ]
+}

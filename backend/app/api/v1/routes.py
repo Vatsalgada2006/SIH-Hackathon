@@ -4,6 +4,7 @@ from sqlalchemy import text
 from sqlalchemy import select
 from app.db.session import get_db
 from app.core.security import get_current_active_user
+from app.db.models import User
 from app.db.models import RoadSegment, User
 from geoalchemy2.functions import ST_SetSRID, ST_MakePoint, ST_Distance
 import json

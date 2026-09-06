@@ -1,0 +1,44 @@
+{
+  "region_thresholds": {
+    "Assam": {
+      "moderate_24h": 50.0,
+      "high_24h": 100.0,
+      "extreme_24h": 200.0
+    },
+    "Meghalaya": {
+      "moderate_24h": 80.0,
+      "high_24h": 150.0,
+      "extreme_24h": 300.0
+    },
+    "Sikkim": {
+      "moderate_24h": 60.0,
+      "high_24h": 120.0,
+      "extreme_24h": 240.0
+    },
+    "Arunachal_Pradesh": {
+      "moderate_24h": 70.0,
+      "high_24h": 140.0,
+      "extreme_24h": 280.0
+    },
+    "Mizoram": {
+      "moderate_24h": 40.0,
+      "high_24h": 80.0,
+      "extreme_24h": 160.0
+    },
+    "Manipur": {
+      "moderate_24h": 50.0,
+      "high_24h": 100.0,
+      "extreme_24h": 200.0
+    },
+    "Tripura": {
+      "moderate_24h": 45.0,
+      "high_24h": 90.0,
+      "extreme_24h": 180.0
+    },
+    "Nagaland": {
+      "moderate_24h": 55.0,
+      "high_24h": 110.0,
+      "extreme_24h": 220.0
+    }
+  }
+}

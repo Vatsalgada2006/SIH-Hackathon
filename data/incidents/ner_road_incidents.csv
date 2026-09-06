@@ -1,0 +1,6 @@
+incident_type,severity,status,latitude,longitude,passable_for,estimated_clearance_time_hrs,delay_penalty_minutes,reporting_agency,description,reported_time
+LANDSLIDE,CRITICAL,ACTIVE,26.1500,91.7500,NONE,48,120,Border Roads Organization,"Major landslide blocking NH-29 near Gangtok","2026-09-01T10:30:00Z"
+FLOOD,HIGH,ACTIVE,25.5000,91.5000,LIGHT_VEHICLES_ONLY,24,60,Assam State Disaster Management,"Flash flooding on NH-15 near Dibrugarh","2026-09-02T14:15:00Z"
+LANDSLIDE,MEDIUM,CLEARING,27.5000,88.3000,ALL_WITH_CAUTION,12,30,Sikkim State Disaster Management,"Minor landslide on NH-10 near Rangpo, one lane open","2026-09-03T08:00:00Z"
+CONSTRUCTION,LOW,ACTIVE,26.7500,94.2000,4X4_AND_CHAINS_ONLY,72,180,National Highways Authority,"Bridge maintenance on NH-37 near Jorhat, alternating traffic","2026-09-01T16:45:00Z"
+LANDSLIDE,HIGH,ACTIVE,23.8000,91.2500,NONE,36,90,Mizoram State Disaster Management,"Road subsidence on NH-54 near Aizawl","2026-09-02T11:20:00Z"

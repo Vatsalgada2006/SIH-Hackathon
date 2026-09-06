@@ -4,6 +4,7 @@ from sqlalchemy import select, desc
 from typing import List, Optional
 from pydantic import BaseModel
 from app.db.session import get_db
+from app.db.models import User
 from app.db.models import Vehicle, VehiclePosition
 from app.core.security import get_current_active_user
 

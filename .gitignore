@@ -1,1 +1,13 @@
 backend/osrm-data/
+
+# Backup files
+*.bak
+# Test scripts
+seed_data_test*.py
+test.txt
+# Cache directories
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+# Data directory (if you don't want to commit sample data; but we will commit it)
+# data/

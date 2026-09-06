@@ -1,0 +1,59 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "incident_type": "LANDSLIDE",
+        "severity": "CRITICAL",
+        "status": "ACTIVE",
+        "passable_for": "NONE",
+        "estimated_clearance_time_hrs": 48,
+        "delay_penalty_minutes": 120,
+        "reporting_agency": "Border Roads Organization",
+        "description": "Major landslide blocking NH-29 near Gangtok",
+        "reported_time": "2026-09-01T10:30:00Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [91.7500, 26.1500]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "incident_type": "FLOOD",
+        "severity": "HIGH",
+        "status": "ACTIVE",
+        "passable_for": "LIGHT_VEHICLES_ONLY",
+        "estimated_clearance_time_hrs": 24,
+        "delay_penalty_minutes": 60,
+        "reporting_agency": "Assam State Disaster Management",
+        "description": "Flash flooding on NH-15 near Dibrugarh",
+        "reported_time": "2026-09-02T14:15:00Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [91.5000, 25.5000]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "incident_type": "LANDSLIDE",
+        "severity": "MEDIUM",
+        "status": "CLEARING",
+        "passable_for": "ALL_WITH_CAUTION",
+        "estimated_clearance_time_hrs": 12,
+        "delay_penalty_minutes": 30,
+        "reporting_agency": "Sikkim State Disaster Management",
+        "description": "Minor landslide on NH-10 near Rangpo, one lane open",
+        "reported_time": "2026-09-03T08:00:00Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [88.3000, 27.5000]
+      }
+    }
+  ]
+}

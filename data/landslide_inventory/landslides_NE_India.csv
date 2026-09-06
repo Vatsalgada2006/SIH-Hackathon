@@ -1,0 +1,7 @@
+landslide_category,landslide_trigger,latitude,longitude,fatalities,injuries,date,location_details
+DEBRIS_FLOW,RAINFALL,26.1500,91.7500,2,5,2026-05-15,NH-29 near Gangtok
+ROCK_FALL,EARTHQUAKE,27.5000,88.3000,0,1,2026-03-22,NH-10 near Rangpo
+SLUMP,RAINFALL,25.5000,91.5000,1,3,2026-07-10,NH-15 near Dibrugarh
+EARTH_SLIDE,HUMAN_ACTIVITY,26.7500,94.2000,0,0,2026-01-20,NH-37 near Jorhat (construction)
+DEBRIS_FLOW,RAINFALL,23.8000,91.2500,3,7,2026-08-05,NH-54 near Aizawl
+ROCK_SLIDE,RAINFALL,27.3317,88.6138,0,2,2026-04-18,NH-10 near Gangtok

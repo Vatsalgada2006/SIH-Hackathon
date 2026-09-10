@@ -5,19 +5,22 @@ from typing import List, Optional
 from pydantic import BaseModel
 from app.db.session import get_db
 from app.db.models import User
-from app.db.models import Vehicle, VehiclePosition
+from app.db.models import Vehicle, VehiclePosition, RoadSegment
 from app.core.security import get_current_active_user
+from geoalchemy2.functions import ST_AsGeoJSON, ST_Y, ST_X
+import json
 
 router = APIRouter()
 
 class VehicleResponse(BaseModel):
     id: int
-    vehicle_id: str
-    type: str
-    capacity: Optional[float]
-    current_segment_id: Optional[int]
-    last_position: Optional[dict]  # Will contain lat, lon, speed, timestamp
-    status: str  # e.g., active, idle, maintenance
+    origin: str  # Starting point description or coordinates
+    destination: str  # Destination point description or coordinates
+    currentLocation: str  # Current location description or coordinates
+    coordinates: List[List[float]]  # list of [lat, lon] for the vehicle's current position trace
+    commodity: str  # What the vehicle is carrying
+    status: str  # e.g., on_route, at_risk, stopped, delayed, delivered
+    delayMinutes: int  # Delay in minutes
 
     class Config:
         orm_mode = True
@@ -51,11 +54,10 @@ async def get_vehicles(
         )
         latest_position = position_result.scalar_one_or_none()
         
-        # Format the position data
-        position_data = None
+        # Format the position data as coordinates [lat, lon]
+        coordinates = []
         if latest_position:
             # We need to get the lat/lon from the geometry
-            from geoalchemy2.functions import ST_AsText, ST_Y, ST_X
             lat_result = await db.execute(
                 select(ST_Y(VehiclePosition.geom)).where(VehiclePosition.id == latest_position.id)
             )
@@ -66,29 +68,50 @@ async def get_vehicles(
             )
             lon = lon_result.scalar_one_or_none()
             
-            position_data = {
-                "lat": lat,
-                "lon": lon,
-                "speed": latest_position.speed,
-                "timestamp": latest_position.recorded_at.isoformat() if latest_position.recorded_at else None
-            }
+            if lat is not None and lon is not None:
+                coordinates = [[lat, lon]]  # Single point as list of [lat, lon]
+        
+        # Determine origin and destination (simplified - in reality these would come from trip data)
+        origin = f"Origin {vehicle.id}"
+        destination = f"Destination {vehicle.id}"
+        currentLocation = "Unknown"
+        
+        if latest_position and lat is not None and lon is not None:
+            currentLocation = f"{lat:.6f},{lon:.6f}"
         
         # Determine vehicle status based on speed or other factors
-        status = "active"  # default
+        status = "on_route"  # default
+        delay_minutes = 0
+        commodity = "General Goods"
+        
         if latest_position:
             if latest_position.speed < 1.0:
-                status = "idle"
-            elif latest_position.speed > 80.0:  # assuming speed limit
-                status = "overspeeding"
+                status = "stopped"
+                delay_minutes = 5  # Assume some delay if stopped
+            elif latest_position.speed < 10.0:
+                status = "delayed"
+                delay_minutes = 15
+            else:
+                status = "on_route"
+                delay_minutes = 0
+        
+        # In a real system, we would check if the current segment has issues
+        # For now, we'll simulate based on vehicle ID
+        if vehicle.id % 3 == 0:
+            status = "at_risk"
+        elif vehicle.id % 5 == 0:
+            status = "delayed"
+            delay_minutes = 10
         
         vehicle_responses.append(VehicleResponse(
             id=vehicle.id,
-            vehicle_id=vehicle.vehicle_id,
-            type=vehicle.type,
-            capacity=vehicle.capacity,
-            current_segment_id=vehicle.current_segment_id,
-            last_position=position_data,
-            status=status
+            origin=origin,
+            destination=destination,
+            currentLocation=currentLocation,
+            coordinates=coordinates,
+            commodity=commodity,
+            status=status,
+            delayMinutes=delay_minutes
         ))
     
     return vehicle_responses

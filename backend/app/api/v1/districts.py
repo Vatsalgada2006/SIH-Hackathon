@@ -4,25 +4,24 @@ from sqlalchemy import select, func
 from typing import List, Optional
 from pydantic import BaseModel
 from app.db.session import get_db
-from app.db.models import RoadSegment, Incident, WeatherSnapshot
-from app.db.models import User
-from app.db.models.incident import IncidentStatus, IncidentSeverity
+from app.db.models import RoadSegment, Incident, User
+from app.db.models.incident import IncidentStatus
 from app.core.security import get_current_active_user
+from app.services.accessibility_service import AccessibilityService
+from geoalchemy2.functions import ST_MakeEnvelope
 
 router = APIRouter()
 
-class DistrictRisk(BaseModel):
+class DistrictResponse(BaseModel):
     id: str
     name: str
-    risk_level: str  # LOW, MEDIUM, HIGH
-    incident_count: int
-    active_incidents: int
-    description: str
+    state: str  # e.g., "Arunachal Pradesh", "Assam", etc.
+    status: str  # accessible, at_risk, inaccessible
 
     class Config:
         orm_mode = True
 
-@router.get("/", response_model=List[DistrictRisk])
+@router.get("/", response_model=List[DistrictResponse])
 async def get_districts(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -43,41 +42,72 @@ async def get_districts(
     
     # If we don't have any segments, return mock data
     if min_lon is None or max_lon is None or min_lat is None or max_lat is None:
-        # Return some mock districts
+        # Return some mock districts for NE India states
         return [
-            DistrictRisk(
+            DistrictResponse(
                 id="district_1",
-                name="Northern District",
-                risk_level="LOW",
-                incident_count=2,
-                active_incidents=0,
-                description="Covers the northern region of the map"
+                name="Arunachal Pradesh",
+                state="Arunachal Pradesh",
+                status="accessible"
             ),
-            DistrictRisk(
+            DistrictResponse(
                 id="district_2",
-                name="Central District",
-                risk_level="MEDIUM",
-                incident_count=5,
-                active_incidents=2,
-                description="Covers the central urban area"
+                name="Assam",
+                state="Assam",
+                status="at_risk"
             ),
-            DistrictRisk(
+            DistrictResponse(
                 id="district_3",
-                name="Southern District",
-                risk_level="HIGH",
-                incident_count=8,
-                active_incidents=3,
-                description="Covers the southern mountainous region"
+                name="Manipur",
+                state="Manipur",
+                status="inaccessible"
+            ),
+            DistrictResponse(
+                id="district_4",
+                name="Meghalaya",
+                state="Meghalaya",
+                status="accessible"
+            ),
+            DistrictResponse(
+                id="district_5",
+                name="Mizoram",
+                state="Mizoram",
+                status="at_risk"
+            ),
+            DistrictResponse(
+                id="district_6",
+                name="Nagaland",
+                state="Nagaland",
+                status="accessible"
+            ),
+            DistrictResponse(
+                id="district_7",
+                name="Sikkim",
+                state="Sikkim",
+                status="accessible"
+            ),
+            DistrictResponse(
+                id="district_8",
+                name="Tripura",
+                state="Tripura",
+                status="at_risk"
             )
         ]
     
-    # Divide the area into a 3x3 grid for simplicity
-    # We'll create 9 districts
+    # Divide the area into a grid based on the number of districts we want to return
+    # For simplicity, we'll create districts based on a 3x3 grid and assign state names
     districts = []
     
     lon_step = (max_lon - min_lon) / 3
     lat_step = (max_lat - min_lat) / 3
     
+    # List of NE India states for naming
+    ne_states = [
+        "Arunachal Pradesh", "Assam", "Manipur", "Meghalaya", 
+        "Mizoram", "Nagaland", "Sikkim", "Tripura"
+    ]
+    
+    state_index = 0
     for i in range(3):
         for j in range(3):
             # Calculate the bounds for this district
@@ -87,20 +117,11 @@ async def get_districts(
             district_max_lat = min_lat + (j + 1) * lat_step
             
             # Create a polygon for this district
-            from geoalchemy2.functions import ST_MakeEnvelope
             polygon = func.ST_MakeEnvelope(
                 district_min_lon, district_min_lat,
                 district_max_lon, district_max_lat,
                 4326
             )
-            
-            # Count segments in this district
-            segment_query = (
-                select(func.count(RoadSegment.id))
-                .where(func.ST_Intersects(RoadSegment.geom, polygon))
-            )
-            segment_result = await db.execute(segment_query)
-            segment_count = segment_result.scalar_one()
             
             # Count incidents in this district (active verified incidents)
             incident_query = (
@@ -114,21 +135,23 @@ async def get_districts(
             incident_result = await db.execute(incident_query)
             incident_count = incident_result.scalar_one()
             
-            # Determine risk level based on incident count
+            # Determine status based on incident count
             if incident_count == 0:
-                risk_level = "LOW"
+                status = "accessible"
             elif incident_count <= 2:
-                risk_level = "MEDIUM"
+                status = "at_risk"
             else:
-                risk_level = "HIGH"
+                status = "inaccessible"
             
-            districts.append(DistrictRisk(
+            # Get state name (cycle through the list)
+            state_name = ne_states[state_index % len(ne_states)]
+            state_index += 1
+            
+            districts.append(DistrictResponse(
                 id=f"district_{i}_{j}",
-                name=f"District {i+1}-{j+1}",
-                risk_level=risk_level,
-                incident_count=incident_count,
-                active_incidents=incident_count,  # Simplified
-                description=f"Covering area from ({district_min_lon:.3f},{district_min_lat:.3f}) to ({district_max_lon:.3f},{district_max_lat:.3f})"
+                name=f"{state_name} Region {i+1}-{j+1}",
+                state=state_name,
+                status=status
             ))
     
     return districts

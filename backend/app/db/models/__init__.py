@@ -7,3 +7,4 @@ from .vehicle import Vehicle
 from .vehicle_position import VehiclePosition
 from .weather_snapshot import WeatherSnapshot
 from .landslide_event import LandslideEvent
+from .vehicle_profile import VehicleProfile

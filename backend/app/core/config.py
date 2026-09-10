@@ -35,14 +35,12 @@ class Settings(BaseSettings):
     GRAPHHOPPER_PORT: int = Field(default=8989)
 
     # Database URL
-    @property
-    def DATABASE_URL(self) -> str:
-        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        # Database URL
+    DATABASE_URL: str = Field(default="postgresql+asyncpg://postgres:postgres@localhost:5432/ner_db")
 
     # Redis URL
-    @property
-    def REDIS_URL(self) -> str:
-        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}"
+        # Redis URL
+    REDIS_URL: str = Field(default="redis://localhost:6379")
 
     class Config:
         env_file = ".env"

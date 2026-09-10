@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, desc
 from typing import List, Optional
 from pydantic import BaseModel
 from app.db.session import get_db
@@ -8,42 +8,45 @@ from app.db.models import User
 from app.db.models import RoadSegment, Incident, WeatherSnapshot
 from app.db.models.incident import IncidentStatus, IncidentSeverity
 from app.core.security import get_current_active_user
+import json
+from datetime import datetime, timedelta
 
 router = APIRouter()
 
-class SegmentRisk(BaseModel):
+class RiskResponse(BaseModel):
     id: int
-    name: str
-    risk_score: float  # 0-100, higher means higher risk
-    risk_level: str  # LOW, MEDIUM, HIGH
-    factors: dict  # contributing factors
+    roadId: int
+    level: str  # low, medium, high, critical
+    cause: str
+    predictedAt: Optional[str] = None  # ISO timestamp
 
     class Config:
         orm_mode = True
 
-@router.get("/", response_model=List[SegmentRisk])
+@router.get("/", response_model=List[RiskResponse])
 async def get_risk_assessment(
     limit: int = Query(100, description="Maximum number of segments to return"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
     # Get road segments
-    segments_query = select(RoadSegment).limit(limit)
+    segments_query = select(RoadSegment.id, RoadSegment.name).limit(limit)
     segments_result = await db.execute(segments_query)
-    segments = segments_result.scalars().all()
+    segments = segments_result.all()
     
     risk_assessments = []
     
     for segment in segments:
-        # Calculate risk based on incidents
-        # Count active verified incidents (not resolved) in the last 24 hours
-        from datetime import datetime, timedelta
+        segment_id, segment_name = segment
+        
+        # Calculate risk based on incidents in the last 24 hours
         twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
         
+        # Count active verified incidents (not resolved) in the last 24 hours
         incident_query = (
             select(func.count(Incident.id))
             .where(
-                Incident.segment_id == segment.id,
+                Incident.segment_id == segment_id,
                 Incident.status == IncidentStatus.VERIFIED.value,
                 Incident.resolved_at.is_(None),
                 Incident.reported_at >= twenty_four_hours_ago
@@ -52,12 +55,11 @@ async def get_risk_assessment(
         incident_result = await db.execute(incident_query)
         recent_incident_count = incident_result.scalar_one()
         
-        # Weight for incidents: each HIGH severity incident adds 30 points, CRITICAL adds 50
-        # We'll get the severity breakdown
+        # Get severity breakdown for more detailed risk assessment
         severity_query = (
             select(Incident.severity, func.count(Incident.id))
             .where(
-                Incident.segment_id == segment.id,
+                Incident.segment_id == segment_id,
                 Incident.status == IncidentStatus.VERIFIED.value,
                 Incident.resolved_at.is_(None),
                 Incident.reported_at >= twenty_four_hours_ago
@@ -67,68 +69,73 @@ async def get_risk_assessment(
         severity_result = await db.execute(severity_query)
         severity_counts = dict(severity_result.all())
         
-        incident_risk = 0
-        incident_risk += severity_counts.get(IncidentSeverity.HIGH.value, 0) * 30
-        incident_risk += severity_counts.get(IncidentSeverity.CRITICAL.value, 0) * 50
-        
         # Calculate risk based on weather
         # Get the latest weather snapshot for this segment
         weather_query = (
             select(WeatherSnapshot)
-            .where(WeatherSnapshot.segment_id == segment.id)
+            .where(WeatherSnapshot.segment_id == segment_id)
             .order_by(desc(WeatherSnapshot.recorded_at))
             .limit(1)
         )
         weather_result = await db.execute(weather_query)
         latest_weather = weather_result.scalar_one_or_none()
         
-        weather_risk = 0
-        weather_factors = {}
+        # Determine risk level and cause
+        risk_level = "low"
+        cause = "normal conditions"
+        
+        # Check for critical weather conditions
         if latest_weather:
-            # Heavy rainfall: >10mm adds 20 points, >20mm adds 40 points
-            if latest_weather.rainfall > 20.0:
-                weather_risk += 40
-                weather_factors["heavy_rainfall"] = latest_weather.rainfall
-            elif latest_weather.rainfall > 10.0:
-                weather_risk += 20
-                weather_factors["rainfall"] = latest_weather.rainfall
+            if latest_weather.rainfall > 50.0:  # Very heavy rainfall
+                risk_level = "critical"
+                cause = f"extreme rainfall ({latest_weather.rainfall}mm)"
+            elif latest_weather.wind_speed > 80.0:  # Extreme wind
+                risk_level = "critical"
+                cause = f"extreme wind speed ({latest_weather.wind_speed}km/h)"
+            elif latest_weather.temperature > 45.0 or latest_weather.temperature < -15.0:  # Extreme temperature
+                risk_level = "high"
+                cause = f"extreme temperature ({latest_weather.temperature}°C)"
+            elif latest_weather.rainfall > 20.0:  # Heavy rainfall
+                if risk_level == "low":
+                    risk_level = "medium"
+                cause = f"heavy rainfall ({latest_weather.rainfall}mm)"
+            elif latest_weather.wind_speed > 50.0:  # Strong wind
+                if risk_level == "low":
+                    risk_level = "medium"
+                cause = f"strong wind ({latest_weather.wind_speed}km/h)"
+        
+        # Check for incidents
+        if recent_incident_count > 0:
+            # Weight incidents by severity
+            incident_risk_score = 0
+            incident_risk_score += severity_counts.get(IncidentSeverity.HIGH.value, 0) * 2
+            incident_risk_score += severity_counts.get(IncidentSeverity.CRITICAL.value, 0) * 3
             
-            # High wind: >30km/h adds 20 points, >50km/h adds 40 points
-            if latest_weather.wind_speed > 50.0:
-                weather_risk += 40
-                weather_factors["high_wind"] = latest_weather.wind_speed
-            elif latest_weather.wind_speed > 30.0:
-                weather_risk += 20
-                weather_factors["wind_speed"] = latest_weather.wind_speed
-            
-            # Extreme temperature: >40°C or < -10°C adds 30 points
-            if latest_weather.temperature > 40.0 or latest_weather.temperature < -10.0:
-                weather_risk += 30
-                weather_factors["extreme_temperature"] = latest_weather.temperature
+            if incident_risk_score >= 5:
+                risk_level = "critical"
+                cause = f"multiple critical incidents ({recent_incident_count} active)"
+            elif incident_risk_score >= 3:
+                if risk_level in ["low", "medium"]:
+                    risk_level = "high"
+                cause = f"multiple high severity incidents ({recent_incident_count} active)"
+            elif incident_risk_score >= 1:
+                if risk_level == "low":
+                    risk_level = "medium"
+                cause = f"active incidents ({recent_incident_count})"
         
-        # Total risk score (capped at 100)
-        total_risk = min(incident_risk + weather_risk, 100)
+        # If we still have low risk but no specific cause, set a default
+        if risk_level == "low" and cause == "normal conditions":
+            cause = "normal conditions"
         
-        # Determine risk level
-        if total_risk >= 70:
-            risk_level = "HIGH"
-        elif total_risk >= 40:
-            risk_level = "MEDIUM"
-        else:
-            risk_level = "LOW"
+        # Predicted at timestamp (when this assessment was made)
+        predicted_at = datetime.utcnow().isoformat()
         
-        risk_assessments.append(SegmentRisk(
-            id=segment.id,
-            name=segment.name or f"Segment {segment.id}",
-            risk_score=float(total_risk),
-            risk_level=risk_level,
-            factors={
-                "incidents": {
-                    "count": recent_incident_count,
-                    "severity_breakdown": severity_counts
-                },
-                "weather": weather_factors if latest_weather else None
-            }
+        risk_assessments.append(RiskResponse(
+            id=segment_id,
+            roadId=segment_id,  # In this implementation, roadId is the same as segment ID
+            level=risk_level,
+            cause=cause,
+            predictedAt=predicted_at
         ))
     
     return risk_assessments

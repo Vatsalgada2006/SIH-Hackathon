@@ -1,4 +1,5 @@
 backend/osrm-data/
+backend/.env
 
 # Backup files
 *.bak
